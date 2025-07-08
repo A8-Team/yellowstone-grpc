@@ -525,13 +525,13 @@ impl GrpcService {
             Duration::from_millis(processed_messages_sleep.unwrap_or(10));
 
         let mut msgid_gen = MessageId::default();
-        let mut messages: BTreeMap<u64, SlotMessages> = Default::default();
+        // let mut messages: BTreeMap<u64, SlotMessages> = Default::default();
         let mut processed_messages = Vec::with_capacity(PROCESSED_MESSAGES_MAX);
-        let mut processed_first_slot = None;
+        // let mut processed_first_slot = None;
         let processed_sleep = sleep(PROCESSED_MESSAGES_SLEEP);
         tokio::pin!(processed_sleep);
-        let (_tx, rx) = mpsc::channel(1);
-        let mut replay_stored_slots_rx = replay_stored_slots_rx.unwrap_or(rx);
+        // let (_tx, rx) = mpsc::channel(1);
+        // let mut replay_stored_slots_rx = replay_stored_slots_rx.unwrap_or(rx);
 
         loop {
             tokio::select! {
