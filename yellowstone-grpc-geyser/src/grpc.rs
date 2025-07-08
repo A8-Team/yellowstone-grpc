@@ -552,129 +552,129 @@ impl GrpcService {
                     }
 
                     // Remove outdated block reconstruction info
-                    match &message {
-                        // On startup we can receive multiple Confirmed/Finalized slots without BlockMeta message
-                        // With saved first Processed slot we can ignore errors caused by startup process
-                        Message::Slot(msg) if processed_first_slot.is_none() && msg.status == SlotStatus::Processed => {
-                            processed_first_slot = Some(msg.slot);
-                        }
-                        Message::Slot(msg) if msg.status == SlotStatus::Finalized => {
-                            // keep extra 10 slots + slots for replay
-                            if let Some(msg_slot) = msg.slot.checked_sub(10 + replay_stored_slots) {
-                                loop {
-                                    match messages.keys().next().cloned() {
-                                        Some(slot) if slot < msg_slot => {
-                                            if let Some(slot_messages) = messages.remove(&slot) {
-                                                match processed_first_slot {
-                                                    Some(processed_first) if slot <= processed_first => continue,
-                                                    None => continue,
-                                                    _ => {}
-                                                }
-
-                                                // if !slot_messages.sealed && slot_messages.finalized_at.is_some() {
-                                                //     let mut reasons = vec![];
-                                                //     if let Some(block_meta) = slot_messages.block_meta {
-                                                //         let block_txn_count = block_meta.executed_transaction_count as usize;
-                                                //         let msg_txn_count = slot_messages.transactions.len();
-                                                //         if block_txn_count != msg_txn_count {
-                                                //             reasons.push("InvalidTxnCount");
-                                                //             error!("failed to reconstruct #{slot} -- tx count: {block_txn_count} vs {msg_txn_count}");
-                                                //         }
-                                                //         let block_entries_count = block_meta.entries_count as usize;
-                                                //         let msg_entries_count = slot_messages.entries.len();
-                                                //         if block_entries_count != msg_entries_count {
-                                                //             reasons.push("InvalidEntriesCount");
-                                                //             error!("failed to reconstruct #{slot} -- entries count: {block_entries_count} vs {msg_entries_count}");
-                                                //         }
-                                                //     } else {
-                                                //         reasons.push("NoBlockMeta");
-                                                //     }
-                                                //     let reason = reasons.join(",");
-                                                //
-                                                //     metrics::update_invalid_blocks(format!("failed reconstruct {reason}"));
-                                                // }
-                                            }
-                                        }
-                                        _ => break,
-                                    }
-                                }
-                                // if let Some(stored) = &replay_first_available_slot {
-                                //     if let Some(slot) = messages.keys().next().copied() {
-                                //         stored.store(slot, Ordering::Relaxed);
-                                //     }
-                                // }
-                            }
-                        }
-                        _ => {}
-                    }
+                    // match &message {
+                    //     // On startup we can receive multiple Confirmed/Finalized slots without BlockMeta message
+                    //     // With saved first Processed slot we can ignore errors caused by startup process
+                    //     Message::Slot(msg) if processed_first_slot.is_none() && msg.status == SlotStatus::Processed => {
+                    //         processed_first_slot = Some(msg.slot);
+                    //     }
+                    //     Message::Slot(msg) if msg.status == SlotStatus::Finalized => {
+                    //         // keep extra 10 slots + slots for replay
+                    //         if let Some(msg_slot) = msg.slot.checked_sub(10 + replay_stored_slots) {
+                    //             loop {
+                    //                 match messages.keys().next().cloned() {
+                    //                     Some(slot) if slot < msg_slot => {
+                    //                         if let Some(slot_messages) = messages.remove(&slot) {
+                    //                             match processed_first_slot {
+                    //                                 Some(processed_first) if slot <= processed_first => continue,
+                    //                                 None => continue,
+                    //                                 _ => {}
+                    //                             }
+                    //
+                    //                             // if !slot_messages.sealed && slot_messages.finalized_at.is_some() {
+                    //                             //     let mut reasons = vec![];
+                    //                             //     if let Some(block_meta) = slot_messages.block_meta {
+                    //                             //         let block_txn_count = block_meta.executed_transaction_count as usize;
+                    //                             //         let msg_txn_count = slot_messages.transactions.len();
+                    //                             //         if block_txn_count != msg_txn_count {
+                    //                             //             reasons.push("InvalidTxnCount");
+                    //                             //             error!("failed to reconstruct #{slot} -- tx count: {block_txn_count} vs {msg_txn_count}");
+                    //                             //         }
+                    //                             //         let block_entries_count = block_meta.entries_count as usize;
+                    //                             //         let msg_entries_count = slot_messages.entries.len();
+                    //                             //         if block_entries_count != msg_entries_count {
+                    //                             //             reasons.push("InvalidEntriesCount");
+                    //                             //             error!("failed to reconstruct #{slot} -- entries count: {block_entries_count} vs {msg_entries_count}");
+                    //                             //         }
+                    //                             //     } else {
+                    //                             //         reasons.push("NoBlockMeta");
+                    //                             //     }
+                    //                             //     let reason = reasons.join(",");
+                    //                             //
+                    //                             //     metrics::update_invalid_blocks(format!("failed reconstruct {reason}"));
+                    //                             // }
+                    //                         }
+                    //                     }
+                    //                     _ => break,
+                    //                 }
+                    //             }
+                    //             // if let Some(stored) = &replay_first_available_slot {
+                    //             //     if let Some(slot) = messages.keys().next().copied() {
+                    //             //         stored.store(slot, Ordering::Relaxed);
+                    //             //     }
+                    //             // }
+                    //         }
+                    //     }
+                    //     _ => {}
+                    // }
 
                     // Update block reconstruction info
-                    let slot_messages = messages.entry(message.get_slot()).or_default();
-                    if let Message::Slot(msg) = &message {
-                        match msg.status {
-                            SlotStatus::Processed => {
-                                slot_messages.parent_slot = msg.parent;
-                            },
-                            SlotStatus::Confirmed => {
-                                slot_messages.confirmed = true;
-                            },
-                            SlotStatus::Finalized => {
-                                slot_messages.finalized = true;
-                            },
-                            _ => {}
-                        }
-                    }
-                    if matches!(&message, Message::Slot(_)) {
-                        slot_messages.messages_slots.push((msgid, message.clone()));
-                    } else {
-                        slot_messages.messages.push(Some((msgid, message.clone())));
-
-                        // // If we already build Block message, new message will be a problem
-                        // if slot_messages.sealed && !(matches!(&message, Message::Entry(_)) && slot_messages.entries_count == 0) {
-                        //     let kind = match &message {
-                        //         Message::Slot(_) => "Slot",
-                        //         Message::Account(_) => "Account",
-                        //         Message::Transaction(_) => "Transaction",
-                        //         Message::Entry(_) => "Entry",
-                        //         Message::BlockMeta(_) => "BlockMeta",
-                        //         Message::Block(_) => "Block",
-                        //     };
-                        //     metrics::update_invalid_blocks(format!("unexpected message {kind}"));
-                        // }
-                    }
-                    let mut sealed_block_msg = None;
-                    match &message {
-                        Message::BlockMeta(msg) => {
-                            if slot_messages.block_meta.is_some() {
-                                metrics::update_invalid_blocks("unexpected message: BlockMeta (duplicate)");
-                            }
-                            slot_messages.block_meta = Some(Arc::clone(msg));
-                            sealed_block_msg = slot_messages.try_seal(&mut msgid_gen);
-                        }
-                        Message::Transaction(msg) => {
-                            slot_messages.transactions.push(Arc::clone(&msg.transaction));
-                            sealed_block_msg = slot_messages.try_seal(&mut msgid_gen);
-                        }
-                        // Dedup accounts by max write_version
-                        Message::Account(msg) => {
-                            let write_version = msg.account.write_version;
-                            let msg_index = slot_messages.messages.len() - 1;
-                            if let Some(entry) = slot_messages.accounts_dedup.get_mut(&msg.account.pubkey) {
-                                if entry.0 < write_version {
-                                    // We can replace the message, but in this case we will lose the order
-                                    slot_messages.messages[entry.1] = None;
-                                    *entry = (write_version, msg_index);
-                                }
-                            } else {
-                                slot_messages.accounts_dedup.insert(msg.account.pubkey, (write_version, msg_index));
-                            }
-                        }
-                        Message::Entry(msg) => {
-                            slot_messages.entries.push(Arc::clone(msg));
-                            sealed_block_msg = slot_messages.try_seal(&mut msgid_gen);
-                        }
-                        _ => {}
-                    }
+                    // let slot_messages = messages.entry(message.get_slot()).or_default();
+                    // if let Message::Slot(msg) = &message {
+                    //     match msg.status {
+                    //         SlotStatus::Processed => {
+                    //             slot_messages.parent_slot = msg.parent;
+                    //         },
+                    //         SlotStatus::Confirmed => {
+                    //             slot_messages.confirmed = true;
+                    //         },
+                    //         SlotStatus::Finalized => {
+                    //             slot_messages.finalized = true;
+                    //         },
+                    //         _ => {}
+                    //     }
+                    // }
+                    // if matches!(&message, Message::Slot(_)) {
+                    //     slot_messages.messages_slots.push((msgid, message.clone()));
+                    // } else {
+                    //     slot_messages.messages.push(Some((msgid, message.clone())));
+                    //
+                    //     // // If we already build Block message, new message will be a problem
+                    //     // if slot_messages.sealed && !(matches!(&message, Message::Entry(_)) && slot_messages.entries_count == 0) {
+                    //     //     let kind = match &message {
+                    //     //         Message::Slot(_) => "Slot",
+                    //     //         Message::Account(_) => "Account",
+                    //     //         Message::Transaction(_) => "Transaction",
+                    //     //         Message::Entry(_) => "Entry",
+                    //     //         Message::BlockMeta(_) => "BlockMeta",
+                    //     //         Message::Block(_) => "Block",
+                    //     //     };
+                    //     //     metrics::update_invalid_blocks(format!("unexpected message {kind}"));
+                    //     // }
+                    // }
+                    // let mut sealed_block_msg = None;
+                    // match &message {
+                    //     Message::BlockMeta(msg) => {
+                    //         if slot_messages.block_meta.is_some() {
+                    //             metrics::update_invalid_blocks("unexpected message: BlockMeta (duplicate)");
+                    //         }
+                    //         slot_messages.block_meta = Some(Arc::clone(msg));
+                    //         sealed_block_msg = slot_messages.try_seal(&mut msgid_gen);
+                    //     }
+                    //     Message::Transaction(msg) => {
+                    //         slot_messages.transactions.push(Arc::clone(&msg.transaction));
+                    //         sealed_block_msg = slot_messages.try_seal(&mut msgid_gen);
+                    //     }
+                    //     // Dedup accounts by max write_version
+                    //     Message::Account(msg) => {
+                    //         let write_version = msg.account.write_version;
+                    //         let msg_index = slot_messages.messages.len() - 1;
+                    //         if let Some(entry) = slot_messages.accounts_dedup.get_mut(&msg.account.pubkey) {
+                    //             if entry.0 < write_version {
+                    //                 // We can replace the message, but in this case we will lose the order
+                    //                 slot_messages.messages[entry.1] = None;
+                    //                 *entry = (write_version, msg_index);
+                    //             }
+                    //         } else {
+                    //             slot_messages.accounts_dedup.insert(msg.account.pubkey, (write_version, msg_index));
+                    //         }
+                    //     }
+                    //     Message::Entry(msg) => {
+                    //         slot_messages.entries.push(Arc::clone(msg));
+                    //         sealed_block_msg = slot_messages.try_seal(&mut msgid_gen);
+                    //     }
+                    //     _ => {}
+                    // }
                     // Send messages to filter (and to clients)
                     let mut messages_vec = Vec::with_capacity(4);
                     // if let Some(sealed_block_msg) = sealed_block_msg {
