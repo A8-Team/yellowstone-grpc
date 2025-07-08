@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+use prost_types::Timestamp;
 use {
     crate::{
         geyser::{
@@ -348,7 +350,8 @@ impl FilterAccounts {
         filtered_updates_once_owned!(
             filters,
             FilteredUpdateOneof::account(message, accounts_data_slice.clone()),
-            message.created_at
+            // message.created_at
+            Timestamp::from(SystemTime::now())
         )
     }
 }
@@ -810,7 +813,8 @@ impl FilterTransactions {
                     FilteredUpdateOneof::transaction_status(message)
                 }
             },
-            message.created_at
+            // message.created_at
+            Timestamp::from(SystemTime::now())
         )
     }
 }
