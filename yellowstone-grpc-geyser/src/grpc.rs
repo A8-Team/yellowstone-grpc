@@ -686,7 +686,7 @@ impl GrpcService {
                     //     None
                     // };
                     if match &message {
-                        Message::Transaction(_) | Message::Account(_) => {
+                        Message::Transaction(_) | Message::Account(_) | Message::Slot(_) => {
                             true
                         }
                         _=> {false}
@@ -760,13 +760,13 @@ impl GrpcService {
                             // };
 
                             // processed
-                            // processed_messages.push(message.clone());
-                            // let _ =
-                            //     broadcast_tx.send((CommitmentLevel::Processed, processed_messages.into()));
-                            // processed_messages = Vec::with_capacity(PROCESSED_MESSAGES_MAX);
-                            // processed_sleep
-                            //     .as_mut()
-                            //     .reset(Instant::now() + PROCESSED_MESSAGES_SLEEP);
+                            processed_messages.push(message.clone());
+                            let _ =
+                                broadcast_tx.send((CommitmentLevel::Processed, processed_messages.into()));
+                            processed_messages = Vec::with_capacity(PROCESSED_MESSAGES_MAX);
+                            processed_sleep
+                                .as_mut()
+                                .reset(Instant::now() + PROCESSED_MESSAGES_SLEEP);
 
                             // confirmed
                             // confirmed_messages.push(message.clone());
