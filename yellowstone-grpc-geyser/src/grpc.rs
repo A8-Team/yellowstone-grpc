@@ -320,7 +320,7 @@ impl SlotMessages {
     }
 }
 
-type BroadcastedMessage = (CommitmentLevel, Arc<Vec<(u64, Message)>>);
+type BroadcastedMessage = (CommitmentLevel, Arc<Vec<(u64, Message)>>, Timestamp);
 
 enum ReplayedResponse {
     Messages(Vec<(u64, Message)>),
@@ -460,7 +460,7 @@ impl GrpcService {
             }
             if let Some(tokio_cpus) = config_tokio.affinity.clone() {
                 builder.on_thread_start(move || {
-                    affinity::set_thread_affinity(&tokio_cpus).expect("failed to set affinity")
+                    // affinity::set_thread_affinity(&tokio_cpus).expect("failed to set affinity")
                 });
             }
             builder
@@ -535,7 +535,8 @@ impl GrpcService {
 
         loop {
             tokio::select! {
-                Some(message) = messages_rx.recv() => {
+                Some(mut message) = messages_rx.recv() => {
+                    let geyser_loop_received_at = Timestamp::from(SystemTime::now());
                     // metrics::message_queue_size_dec();
                     let msgid = msgid_gen.next();
 
@@ -685,8 +686,17 @@ impl GrpcService {
                     // } else {
                     //     None
                     // };
-                    if match &message {
-                        Message::Transaction(_) | Message::Account(_) | Message::Slot(_) => {
+                    if match &mut message {
+                        Message::Transaction(msg) => {
+                            msg.geyser_loop_received_at = geyser_loop_received_at;
+                            true
+                        }
+                         Message::Account(msg) => {
+                            msg.geyser_loop_received_at = geyser_loop_received_at;
+                            true
+                        }
+                        Message::Slot(msg)=>{
+                            msg.geyser_loop_received_at = geyser_loop_received_at;
                             true
                         }
                         _=> {false}
@@ -762,7 +772,7 @@ impl GrpcService {
                             // processed
                             processed_messages.push(message.clone());
                             let _ =
-                                broadcast_tx.send((CommitmentLevel::Processed, processed_messages.into()));
+                                broadcast_tx.send((CommitmentLevel::Processed, processed_messages.into(),Timestamp::from(SystemTime::now())));
                             processed_messages = Vec::with_capacity(PROCESSED_MESSAGES_MAX);
                             processed_sleep
                                 .as_mut()
@@ -801,7 +811,7 @@ impl GrpcService {
                                 // || !finalized_messages.is_empty()
                             {
                                 let _ = broadcast_tx
-                                    .send((CommitmentLevel::Processed, processed_messages.into()));
+                                    .send((CommitmentLevel::Processed, processed_messages.into(),Timestamp::from(SystemTime::now())));
                                 processed_messages = Vec::with_capacity(PROCESSED_MESSAGES_MAX);
                                 processed_sleep
                                     .as_mut()
@@ -822,7 +832,7 @@ impl GrpcService {
                 }
                 () = &mut processed_sleep => {
                     if !processed_messages.is_empty() {
-                        let _ = broadcast_tx.send((CommitmentLevel::Processed, processed_messages.into()));
+                        let _ = broadcast_tx.send((CommitmentLevel::Processed, processed_messages.into(),Timestamp::from(SystemTime::now())));
                         processed_messages = Vec::with_capacity(PROCESSED_MESSAGES_MAX);
                     }
                     processed_sleep.as_mut().reset(Instant::now() + PROCESSED_MESSAGES_SLEEP);
@@ -957,7 +967,7 @@ impl GrpcService {
 
                                     messages.sort_by_key(|msg| msg.0);
                                     for (_msgid, message) in messages.iter() {
-                                        for message in filter.get_updates(message, Some(commitment)) {
+                                        for mut message in filter.get_updates(message, Some(commitment)) {
                                             match stream_tx.send(Ok(message)).await {
                                                 Ok(()) => {}
                                                 Err(mpsc::error::SendError(_)) => {
@@ -978,8 +988,9 @@ impl GrpcService {
                         }
                     }
                     message = messages_rx.recv() => {
-                        let (commitment, messages) = match message {
-                            Ok((commitment, messages)) => (commitment, messages),
+                        let client_loop_received_at = Timestamp::from(SystemTime::now());
+                        let (commitment, messages, geyser_loop_send_at) = match message {
+                            Ok((commitment, messages, send_at)) => (commitment, messages,send_at),
                             Err(broadcast::error::RecvError::Closed) => {
                                 break 'outer;
                             },
@@ -994,7 +1005,10 @@ impl GrpcService {
 
                         if commitment == filter.get_commitment_level() {
                             for (_msgid, message) in messages.iter() {
-                                for message in filter.get_updates(message, Some(commitment)) {
+                                for mut message in filter.get_updates(message, Some(commitment)) {
+                                    message.client_loop_received_at=client_loop_received_at;
+                                    message.geyser_loop_send_at=geyser_loop_send_at;
+                                    message.send_at=Timestamp::from(SystemTime::now());
                                     match stream_tx.try_send(Ok(message)) {
                                         Ok(()) => {}
                                         Err(mpsc::error::TrySendError::Full(_)) => {

@@ -150,6 +150,7 @@ pub struct MessageSlot {
     pub status: SlotStatus,
     pub dead_error: Option<String>,
     pub created_at: Timestamp,
+    pub geyser_loop_received_at: Timestamp,
 }
 
 impl MessageSlot {
@@ -164,12 +165,14 @@ impl MessageSlot {
                 None
             },
             created_at: Timestamp::from(SystemTime::now()),
+            geyser_loop_received_at: Timestamp::from(SystemTime::now()),
         }
     }
 
     pub fn from_update_oneof(
         msg: &SubscribeUpdateSlot,
         created_at: Timestamp,
+        geyser_loop_received_at: Option<Timestamp>,
     ) -> FromUpdateOneofResult<Self> {
         Ok(Self {
             slot: msg.slot,
@@ -179,6 +182,8 @@ impl MessageSlot {
                 .into(),
             dead_error: msg.dead_error.clone(),
             created_at,
+            geyser_loop_received_at: geyser_loop_received_at
+                .unwrap_or(Timestamp::from(SystemTime::now())),
         })
     }
 }
@@ -234,6 +239,7 @@ pub struct MessageAccount {
     pub slot: Slot,
     pub is_startup: bool,
     pub created_at: Timestamp,
+    pub geyser_loop_received_at: Timestamp,
 }
 
 impl MessageAccount {
@@ -243,12 +249,14 @@ impl MessageAccount {
             slot,
             is_startup,
             created_at: Timestamp::from(SystemTime::now()),
+            geyser_loop_received_at: Timestamp::from(SystemTime::now()),
         }
     }
 
     pub fn from_update_oneof(
         msg: SubscribeUpdateAccount,
         created_at: Timestamp,
+        geyser_loop_received_at: Option<Timestamp>,
     ) -> FromUpdateOneofResult<Self> {
         Ok(Self {
             account: Arc::new(MessageAccountInfo::from_update_oneof(
@@ -257,6 +265,8 @@ impl MessageAccount {
             slot: msg.slot,
             is_startup: msg.is_startup,
             created_at,
+            geyser_loop_received_at: geyser_loop_received_at
+                .unwrap_or(Timestamp::from(SystemTime::now())),
         })
     }
 }
@@ -342,6 +352,7 @@ pub struct MessageTransaction {
     pub transaction: Arc<MessageTransactionInfo>,
     pub slot: u64,
     pub created_at: Timestamp,
+    pub geyser_loop_received_at: Timestamp,
 }
 
 impl MessageTransaction {
@@ -350,12 +361,14 @@ impl MessageTransaction {
             transaction: Arc::new(MessageTransactionInfo::from_geyser(info)),
             slot,
             created_at: Timestamp::from(SystemTime::now()),
+            geyser_loop_received_at: Timestamp::from(SystemTime::now()),
         }
     }
 
     pub fn from_update_oneof(
         msg: SubscribeUpdateTransaction,
         created_at: Timestamp,
+        geyser_loop_received_at: Option<Timestamp>,
     ) -> FromUpdateOneofResult<Self> {
         Ok(Self {
             transaction: Arc::new(MessageTransactionInfo::from_update_oneof(
@@ -364,6 +377,8 @@ impl MessageTransaction {
             )?),
             slot: msg.slot,
             created_at,
+            geyser_loop_received_at: geyser_loop_received_at
+                .unwrap_or(Timestamp::from(SystemTime::now())),
         })
     }
 }
@@ -561,12 +576,14 @@ impl Message {
     ) -> FromUpdateOneofResult<Self> {
         Ok(match oneof {
             UpdateOneof::Account(msg) => {
-                Self::Account(MessageAccount::from_update_oneof(msg, created_at)?)
+                Self::Account(MessageAccount::from_update_oneof(msg, created_at, None)?)
             }
-            UpdateOneof::Slot(msg) => Self::Slot(MessageSlot::from_update_oneof(&msg, created_at)?),
-            UpdateOneof::Transaction(msg) => {
-                Self::Transaction(MessageTransaction::from_update_oneof(msg, created_at)?)
+            UpdateOneof::Slot(msg) => {
+                Self::Slot(MessageSlot::from_update_oneof(&msg, created_at, None)?)
             }
+            UpdateOneof::Transaction(msg) => Self::Transaction(
+                MessageTransaction::from_update_oneof(msg, created_at, None)?,
+            ),
             UpdateOneof::TransactionStatus(_) => {
                 return Err("TransactionStatus message is not supported")
             }

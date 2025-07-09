@@ -43,6 +43,10 @@ fn bench_account(c: &mut Criterion) {
             filters: filters.clone(),
             message: FilteredUpdateOneof::account(&msg, data_slice),
             created_at: Timestamp::from(SystemTime::now()),
+            send_at: Timestamp::from(SystemTime::now()),
+            geyser_loop_received_at: Default::default(),
+            client_loop_received_at: Default::default(),
+            geyser_loop_send_at: Default::default(),
         })
         .collect::<Vec<_>>();
     bench!(&updates, "accounts");
@@ -55,8 +59,13 @@ fn bench_account(c: &mut Criterion) {
                 transaction,
                 slot: 42,
                 created_at: Timestamp::from(SystemTime::now()),
+                geyser_loop_received_at: Default::default(),
             }),
             created_at: Timestamp::from(SystemTime::now()),
+            send_at: Timestamp::from(SystemTime::now()),
+            geyser_loop_received_at: Default::default(),
+            client_loop_received_at: Default::default(),
+            geyser_loop_send_at: Default::default(),
         })
         .collect::<Vec<_>>();
     bench!(&updates, "transactions");
@@ -67,6 +76,10 @@ fn bench_account(c: &mut Criterion) {
             filters: filters.clone(),
             message: FilteredUpdateOneof::block(Box::new(block)),
             created_at: Timestamp::from(SystemTime::now()),
+            send_at: Timestamp::from(SystemTime::now()),
+            geyser_loop_received_at: Default::default(),
+            client_loop_received_at: Default::default(),
+            geyser_loop_send_at: Default::default(),
         })
         .collect::<Vec<_>>();
     bench!(&updates, "blocks");
