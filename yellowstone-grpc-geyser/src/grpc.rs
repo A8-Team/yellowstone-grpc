@@ -460,7 +460,7 @@ impl GrpcService {
             }
             if let Some(tokio_cpus) = config_tokio.affinity.clone() {
                 builder.on_thread_start(move || {
-                    // affinity::set_thread_affinity(&tokio_cpus).expect("failed to set affinity")
+                    affinity::set_thread_affinity(&tokio_cpus).expect("failed to set affinity")
                 });
             }
             builder
