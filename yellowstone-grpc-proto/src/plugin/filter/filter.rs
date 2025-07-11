@@ -1,3 +1,5 @@
+use prost_types::Timestamp;
+use std::time::SystemTime;
 use {
     crate::{
         geyser::{
@@ -236,13 +238,28 @@ impl Filter {
         commitment: Option<CommitmentLevel>,
     ) -> FilteredUpdates {
         match message {
-            Message::Account(message) => self
-                .accounts
-                .get_updates(message, &self.accounts_data_slice),
-            Message::Slot(message) => self.slots.get_updates(message, commitment),
+            Message::Account(message) => {
+                let mut res = self
+                    .accounts
+                    .get_updates(message, &self.accounts_data_slice);
+                res.iter_mut().for_each(|msg| {
+                    msg.geyser_loop_received_at = message.geyser_loop_received_at;
+                });
+                res
+            }
+            Message::Slot(message) => {
+                let mut res = self.slots.get_updates(message, commitment);
+                res.iter_mut().for_each(|msg| {
+                    msg.geyser_loop_received_at = message.geyser_loop_received_at;
+                });
+                res
+            }
             Message::Transaction(message) => {
                 let mut updates = self.transactions.get_updates(message);
                 updates.append(&mut self.transactions_status.get_updates(message));
+                updates.iter_mut().for_each(|msg| {
+                    msg.geyser_loop_received_at = message.geyser_loop_received_at;
+                });
                 updates
             }
             Message::Entry(message) => self.entries.get_updates(message),
@@ -1186,6 +1203,7 @@ mod tests {
             }),
             slot: 100,
             created_at: Timestamp::from(SystemTime::now()),
+            geyser_loop_received_at: Timestamp::from(SystemTime::now()),
         }
     }
 

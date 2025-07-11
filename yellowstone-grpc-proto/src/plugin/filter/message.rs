@@ -70,6 +70,10 @@ pub struct FilteredUpdate {
     pub filters: FilteredUpdateFilters,
     pub message: FilteredUpdateOneof,
     pub created_at: Timestamp,
+    pub send_at: Timestamp,
+    pub geyser_loop_received_at: Timestamp,
+    pub client_loop_received_at: Timestamp,
+    pub geyser_loop_send_at: Timestamp,
 }
 
 impl prost::Message for FilteredUpdate {
@@ -81,12 +85,20 @@ impl prost::Message for FilteredUpdate {
         }
         self.message.encode_raw(buf);
         message::encode(11u32, &self.created_at, buf);
+        message::encode(12u32, &self.send_at, buf);
+        message::encode(13u32, &self.client_loop_received_at, buf);
+        message::encode(14u32, &self.geyser_loop_received_at, buf);
+        message::encode(15u32, &self.geyser_loop_send_at, buf);
     }
 
     fn encoded_len(&self) -> usize {
         prost_repeated_encoded_len_map!(1u32, self.filters, |filter| filter.as_ref().len())
             + self.message.encoded_len()
             + message::encoded_len(11u32, &self.created_at)
+            + message::encoded_len(12u32, &self.send_at)
+            + message::encoded_len(13u32, &self.client_loop_received_at)
+            + message::encoded_len(14u32, &self.geyser_loop_received_at)
+            + message::encoded_len(15u32, &self.geyser_loop_send_at)
     }
 
     fn merge_field(
@@ -114,6 +126,10 @@ impl FilteredUpdate {
             filters,
             message,
             created_at,
+            send_at: created_at,
+            geyser_loop_received_at: created_at,
+            client_loop_received_at: created_at,
+            geyser_loop_send_at: created_at,
         }
     }
 
@@ -242,15 +258,19 @@ impl FilteredUpdate {
                 .collect(),
             update_oneof: Some(message),
             created_at: Some(self.created_at),
+            send_at: Some(self.send_at),
+            ..Default::default()
         }
     }
 
     pub fn from_subscribe_update(update: SubscribeUpdate) -> Result<Self, &'static str> {
         let created_at = update.created_at.ok_or("create_at should be defined")?;
+        let geyser_loop_received_at = update.geyser_loop_received_at;
 
         let message = match update.update_oneof.ok_or("update should be defined")? {
             UpdateOneof::Account(msg) => {
-                let account = MessageAccount::from_update_oneof(msg, created_at)?;
+                let account =
+                    MessageAccount::from_update_oneof(msg, created_at, geyser_loop_received_at)?;
                 FilteredUpdateOneof::Account(FilteredUpdateAccount {
                     account: account.account,
                     slot: account.slot,
@@ -259,11 +279,16 @@ impl FilteredUpdate {
                 })
             }
             UpdateOneof::Slot(msg) => {
-                let slot = MessageSlot::from_update_oneof(&msg, created_at)?;
+                let slot =
+                    MessageSlot::from_update_oneof(&msg, created_at, geyser_loop_received_at)?;
                 FilteredUpdateOneof::Slot(FilteredUpdateSlot(slot))
             }
             UpdateOneof::Transaction(msg) => {
-                let tx = MessageTransaction::from_update_oneof(msg, created_at)?;
+                let tx = MessageTransaction::from_update_oneof(
+                    msg,
+                    created_at,
+                    geyser_loop_received_at,
+                )?;
                 FilteredUpdateOneof::Transaction(FilteredUpdateTransaction {
                     transaction: tx.transaction,
                     slot: tx.slot,
@@ -313,6 +338,10 @@ impl FilteredUpdate {
             filters: update.filters.into_iter().map(FilterName::new).collect(),
             message,
             created_at,
+            send_at: Timestamp::from(SystemTime::now()),
+            geyser_loop_received_at: Timestamp::from(SystemTime::now()),
+            client_loop_received_at: Timestamp::from(SystemTime::now()),
+            geyser_loop_send_at: Timestamp::from(SystemTime::now()),
         })
     }
 }
@@ -1079,6 +1108,7 @@ pub mod tests {
                             slot,
                             is_startup,
                             created_at: Timestamp::from(SystemTime::now()),
+                            geyser_loop_received_at: Timestamp::from(SystemTime::now()),
                         };
                         vec.push((msg, data_slice));
                     }
@@ -1237,6 +1267,10 @@ pub mod tests {
             filters: create_message_filters(filters),
             message,
             created_at: Timestamp::from(SystemTime::now()),
+            send_at: Timestamp::from(SystemTime::now()),
+            geyser_loop_received_at: Timestamp::from(SystemTime::now()),
+            client_loop_received_at: Timestamp::from(SystemTime::now()),
+            geyser_loop_send_at: Timestamp::from(SystemTime::now()),
         };
         let update = msg.as_subscribe_update();
         assert_eq!(msg.encoded_len(), update.encoded_len());
@@ -1279,6 +1313,7 @@ pub mod tests {
                             status,
                             dead_error: None,
                             created_at: Timestamp::from(SystemTime::now()),
+                            geyser_loop_received_at: Timestamp::from(SystemTime::now()),
                         }),
                     )
                 }
@@ -1290,6 +1325,7 @@ pub mod tests {
                         status: SlotStatus::Dead,
                         dead_error: Some("123".to_owned()),
                         created_at: Timestamp::from(SystemTime::now()),
+                        geyser_loop_received_at: Timestamp::from(SystemTime::now()),
                     }),
                 )
             }
@@ -1303,6 +1339,7 @@ pub mod tests {
                 transaction,
                 slot: 42,
                 created_at: Timestamp::from(SystemTime::now()),
+                geyser_loop_received_at: Timestamp::from(SystemTime::now()),
             };
             encode_decode_cmp(&["123"], FilteredUpdateOneof::transaction(&msg));
             encode_decode_cmp(&["123"], FilteredUpdateOneof::transaction_status(&msg));

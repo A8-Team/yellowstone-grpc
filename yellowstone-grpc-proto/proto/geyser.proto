@@ -130,6 +130,10 @@ message SubscribeUpdate {
     SubscribeUpdateEntry entry = 8;
   }
   google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp send_at = 12;
+  google.protobuf.Timestamp client_loop_received_at = 13;
+  google.protobuf.Timestamp geyser_loop_received_at = 14;
+  google.protobuf.Timestamp geyser_loop_send_at = 15;
 }
 
 message SubscribeUpdateAccount {
