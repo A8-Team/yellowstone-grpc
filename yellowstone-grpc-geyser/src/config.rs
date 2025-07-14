@@ -13,7 +13,7 @@ use {
 };
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
+// #[serde(deny_unknown_fields)]
 pub struct Config {
     pub libpath: String,
     #[serde(default)]
